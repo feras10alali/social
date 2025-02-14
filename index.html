@@ -63,6 +63,94 @@
         <a href="https://tellonym.me/10Feras" target="_blank"><button id="tellonym-button" class="buttons">Tellonym</button></a>
         <a href="" target="_blank"><button id="x-button" class="buttons">X</button></a>
         <a href="" target="_blank"><button id="x-button" class="buttons">what next OnlyFans👀???</button></a>
+        <p>i am making a project using sveltekit and pocketbase, i wrote a +server.js code to protect some routes but it is not working here are my files: /profile/+server.js(import { redirect } from '@sveltejs/kit';
+
+export async function GET({ locals }) {
+	if (!locals.pb.authStore.isValid) {
+		throw redirect(303, '/login');
+	}
+	return new Response('Welcome to the protected route.');
+}
+), hooks.server.js(import { createPocketBase } from '$lib/pocketbase';
+import { serialize } from 'cookie';
+
+export async function handle({ event, resolve }) {
+  event.locals.pb = createPocketBase(event);
+
+  const response = await resolve(event);
+
+  if (event.locals.pb.authStore.isValid) {
+    try {
+      const cookieValue = event.locals.pb.authStore.exportToCookie();
+      const cookieHeader = serialize('pb_auth', cookieValue, {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
+
+      response.headers.append('set-cookie', cookieHeader);
+    } catch (err) {
+      console.error("Error exporting auth cookie:", err);
+      const clearCookieHeader = serialize('pb_auth', '', {
+        path: '/',
+        httpOnly: true,
+        sameSite: 'strict',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 0,
+      });
+      response.headers.append('set-cookie', clearCookieHeader);
+    }
+  }
+
+  return response;
+}
+), /lib/pocketbase.js(import PocketBase from 'pocketbase';
+import { PRIVATE_POCKETBASE_URL } from '$env/static/private';
+
+export function createPocketBase(event) {
+  const pb = new PocketBase(PRIVATE_POCKETBASE_URL);
+
+  if (event?.cookies) {
+    const authCookie = event.cookies.get('authcookie');
+    if (authCookie) {
+      try {
+        pb.authStore.loadFromCookie(authCookie);
+      } catch (error) {
+        console.error('Error loading auth cookie:', error);
+        event.cookies.delete('authcookie');
+      }
+    }
+  }
+
+  return pb;
+}
+), /login/+server.js(import { json } from '@sveltejs/kit';
+import { createPocketBase } from '$lib/pocketbase';
+
+export async function POST({ request, cookies }) {
+  const { email, password } = await request.json();
+  const pb = createPocketBase();
+
+  try {
+    await pb.collection('users').authWithPassword(email, password);
+    const user = pb.authStore.model;
+
+    cookies.set('authcookie', pb.authStore.exportToCookie(), {
+      path: '/',
+      httpOnly: true,
+      sameSite: 'strict',
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 60 * 60 * 24 * 7
+    });
+
+    return json({ success: true, user: { firstName: user.firstName, lastName: user.lastName, email: user.email } });
+  } catch (err) {
+    return json({ success: false, error: err.message || 'Invalid credentials' }, { status: 401 });
+  }
+}
+)</p>
     </div>
 </body>
 </html>
